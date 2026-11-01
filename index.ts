@@ -40,3 +40,25 @@ function getDb(): Promise<Db> {
   }
   return dbPromise;
 }
+
+app.get("/", (_req, res) => {
+  res.json({ message: "BookNook API is running" });
+});
+
+// 1) GET /books
+app.get("/books", async (req, res) => {
+  const db = await getDb();
+  const sort = queryString(req.query.sort) ?? "newest";
+  const category = queryString(req.query.category);
+  const search = queryString(req.query.search);
+  const email = queryString(req.query.email);
+  const limit = parseInt(queryString(req.query.limit) ?? "", 10);
+
+  // Built as a plain object because it uses a dotted key ("addedBy.email").
+  const filter: Record<string, unknown> = {};
+  if (category && category !== "All") filter.category = category;
+  if (email) filter["addedBy.email"] = email;
+  if (search) {
+    const rx = new RegExp(escapeRegex(search), "i");
+    filter.$or = [{ title: rx }, { author: rx }];
+  }
