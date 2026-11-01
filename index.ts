@@ -28,7 +28,6 @@ function getDb(): Promise<Db> {
       const client = new MongoClient(uri);
       await client.connect();
       const db = client.db(process.env.DB_NAME || "booknook");
-      // A user can hold only one active borrow per book.
       await db.collection<Borrow>("borrows").createIndex({ bookId: 1, userEmail: 1 }, { unique: true });
       await db.collection<Book>("books").createIndex({ createdAt: -1 });
       return db;
@@ -62,3 +61,30 @@ app.get("/books", async (req, res) => {
     const rx = new RegExp(escapeRegex(search), "i");
     filter.$or = [{ title: rx }, { author: rx }];
   }
+   const filter: Record<string, unknown> = {};
+  if (category && category !== "All") filter.category = category;
+  if (email) filter["addedBy.email"] = email;
+  if (search) {
+    const rx = new RegExp(escapeRegex(search), "i");
+    filter.$or = [{ title: rx }, { author: rx }];
+  }
+
+  const direction = sort === "oldest" ? 1 : -1;
+  const sortSpec: Sort = { createdAt: direction, _id: direction };
+  let cursor = db.collection<Book>("books").find(filter as Filter<Book>).sort(sortSpec);
+  if (limit > 0) cursor = cursor.limit(Math.min(limit, 100));
+
+  res.json(await cursor.toArray());
+});
+
+//post boook
+
+app.post("/books", async (req, res) => {
+  const user = (req as AuthedRequest).user;
+  const { data, error } = cleanBookInput(req.body);
+  if (!data) {
+    res.status(400).json({ message: error });
+    return;
+  }
+
+});
