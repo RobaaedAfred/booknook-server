@@ -41,7 +41,49 @@ function getDb(): Promise<Db> {
   return dbPromise;
 }
 
+let jwks: ReturnType<typeof createRemoteJWKSet> | undefined;
 
+function getJwks() {
+  if (!jwks) {
+    const url = process.env.AUTH_JWKS_URL;
+    if (!url) throw new Error("AUTH_JWKS_URL is not set in server/.env");
+    jwks = createRemoteJWKSet(new URL(url));
+  }
+  return jwks;
+}
+
+async function verifyJWT(req: Request, res: Response, next: NextFunction): Promise<void> {
+  // TEST MODE ONLY: skips token checks. Never enable in production.
+  if (process.env.AUTH_DISABLED === "true") {
+    (req as AuthedRequest).user = { id: "dev-user", name: "Test User", email: "test@booknook.dev" };
+    next();
+    return;
+  }
+
+  const header = req.headers.authorization || "";
+  const token = header.startsWith("Bearer ") ? header.slice(7) : null;
+  if (!token) {
+    res.status(401).json({ message: "Unauthorized: token missing" });
+    return;
+  }
+  try {
+    const { payload } = await jwtVerify(token, getJwks());
+    const email = typeof payload.email === "string" ? payload.email : null;
+    if (!email) {
+      res.status(401).json({ message: "Unauthorized: invalid token" });
+      return;
+    }
+    (req as AuthedRequest).user = {
+      id: String(payload.id ?? payload.sub ?? ""),
+      name: typeof payload.name === "string" ? payload.name : "",
+      email,
+    };
+    next();
+  } catch (err) {
+    console.error("JWT error:", err instanceof Error ? err.message : err);
+    res.status(401).json({ message: "Unauthorized: invalid or expired token" });
+  }
+}
 
 const isValidId = (id: unknown): id is string =>
   typeof id === "string" && ObjectId.isValid(id) && String(new ObjectId(id)) === id;
