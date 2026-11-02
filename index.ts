@@ -171,3 +171,73 @@ app.post("/borrows", verifyJWT, async (req, res) => {
   if (!due || isNaN(due.getTime()) || due <= borrowDate) {
     due = new Date(borrowDate.getTime() + 14 * 24 * 60 * 60 * 1000);
   }
+
+  let borrowId: ObjectId;
+  try {
+    const result = await borrows.insertOne(borrow);
+    borrowId = result.insertedId;
+  } catch (err) {
+    if ((err as { code?: number }).code === 11000) {
+      res.status(409).json({ message: "You have already borrowed this book" });
+      return;
+    }
+    throw err;
+  }
+
+  const updated = await books.findOneAndUpdate(
+    { _id: book._id, availableCopies: { $gt: 0 } },
+    { $inc: { availableCopies: -1 } },
+    { returnDocument: "after" }
+  );
+  if (!updated) {
+    await borrows.deleteOne({ _id: borrowId });
+    res.status(409).json({ message: "Sorry, this book is not available right now" });
+    return;
+  }
+
+  res.status(201).json({ ...borrow, _id: borrowId });
+});
+/ 7) GET /borrows — only the logged-in user's borrows
+app.get("/borrows", verifyJWT, async (req, res) => {
+  const user = (req as AuthedRequest).user;
+  const db = await getDb();
+  const list = await db.collection<Borrow>("borrows").find({ userEmail: user.email }).sort({ borrowDate: -1 }).toArray();
+  res.json(list);
+});
+
+// 8) DELETE /borrows/:id — return a book
+app.delete("/borrows/:id", async (req, res) => {
+  const user = (req as AuthedRequest).user;
+  const id = req.params.id;
+  if (!isValidId(id)) {
+    res.status(400).json({ message: "Invalid borrow id" });
+    return;
+  }
+  const db = await getDb();
+  const borrow = await db.collection<Borrow>("borrows").findOneAndDelete({
+    _id: new ObjectId(id),
+    userEmail: user.email,
+  });
+  if (!borrow) {
+    res.status(404).json({ message: "Borrow record not found" });
+    return;
+  }
+
+  if (isValidId(borrow.bookId)) {
+    await db.collection<Book>("books").updateOne({ _id: new ObjectId(borrow.bookId) }, { $inc: { availableCopies: 1 } });
+  }
+  res.json({ deletedCount: 1 });
+});
+
+
+app.use((_req, res) => {
+  res.status(404).json({ message: "Route not found" });
+});
+
+app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
+  console.error(err);
+  res.status(500).json({ message: "Something went wrong on the server" });
+});
+
+
+export default app;
