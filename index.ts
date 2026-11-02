@@ -223,13 +223,13 @@ app.delete("/borrows/:id", async (req, res) => {
     return;
   }
 
-  if (isValidId(borrow.bookId)) {
+ if (isValidId(borrow.bookId)) {
     await db.collection<Book>("books").updateOne({ _id: new ObjectId(borrow.bookId) }, { $inc: { availableCopies: 1 } });
   }
   res.json({ deletedCount: 1 });
 });
 
-
+/* ---------- Errors ---------- */
 app.use((_req, res) => {
   res.status(404).json({ message: "Route not found" });
 });
@@ -239,5 +239,8 @@ app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
   res.status(500).json({ message: "Something went wrong on the server" });
 });
 
+if (!process.env.VERCEL) {
+  app.listen(PORT, () => console.log(`BookNook API running on http://localhost:${PORT}`));
+}
 
 export default app;
