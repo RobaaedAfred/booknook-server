@@ -148,3 +148,26 @@ app.post("/books", async (req, res) => {
     return;
   }
 
+// 6) POST /borrows
+app.post("/borrows", verifyJWT, async (req, res) => {
+  const user = (req as AuthedRequest).user;
+  const { bookId, returnDate } = (req.body ?? {}) as { bookId?: unknown; returnDate?: unknown };
+  if (!isValidId(bookId)) {
+    res.status(400).json({ message: "Invalid book id" });
+    return;
+  }
+
+  const db = await getDb();
+  const books = db.collection<Book>("books");
+  const borrows = db.collection<Omit<Borrow, "_id">>("borrows");
+  const book = await books.findOne({ _id: new ObjectId(bookId) });
+  if (!book) {
+    res.status(404).json({ message: "Book not found" });
+    return;
+  }
+
+  const borrowDate = new Date();
+  let due = typeof returnDate === "string" && returnDate ? new Date(returnDate) : null;
+  if (!due || isNaN(due.getTime()) || due <= borrowDate) {
+    due = new Date(borrowDate.getTime() + 14 * 24 * 60 * 60 * 1000);
+  }
