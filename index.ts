@@ -1,9 +1,14 @@
 import "dotenv/config";
+
 import express, { type NextFunction, type Request, type Response } from "express";
 import cors from "cors";
 import { MongoClient, ObjectId, type Db, type Filter, type Sort } from "mongodb";
 import { createRemoteJWKSet, jwtVerify } from "jose";
-import { CATEGORIES, type AuthUser, type Book, type 
+import { CATEGORIES, type AuthUser, type Book, type BookInput, type Borrow, type Category } from "./types.js";
+
+const process = (globalThis as typeof globalThis & {
+  process: { env: Record<string, string | undefined> };
+}).process;
 
 type AuthedRequest = Request & { user: AuthUser };
 
@@ -110,12 +115,12 @@ function cleanBookInput(body: Record<string, unknown> | undefined): CleanResult 
 }
 
 
-app.get("/", (_req, res) => {
+app.get("/", (_req: Request, res: Response) => {
   res.json({ message: "BookNook API is running" });
 });
 
 //get Book data
-app.get("/books", async (req, res) => {
+app.get("/books", async (req:Request, res:Response) => {
   const db = await getDb();
   const sort = queryString(req.query.sort) ?? "newest";
   const category = queryString(req.query.category);
@@ -141,7 +146,7 @@ app.get("/books", async (req, res) => {
 });
 
 // GET books/:id
-app.get("/books/:id",  async (req, res) => {
+app.get("/books/:id",  async (req:Request, res:Response) => {
   const id = req.params.id;
   if (!isValidId(id)) {
     res.status(400).json({ message: "Invalid book id" });
@@ -157,7 +162,7 @@ app.get("/books/:id",  async (req, res) => {
 });
 
 // POST /books
-app.post("/books", async (req, res) => {
+app.post("/books", async (req:Request, res:Response) => {
   const user = (req as AuthedRequest).user;
   const { data, error } = cleanBookInput(req.body);
   if (!data) {
@@ -177,7 +182,7 @@ app.post("/books", async (req, res) => {
 });
 
 // 4) PATCH /books/:id — owner only
-app.patch("/books/:id", verifyJWT, async (req, res) => {
+app.patch("/books/:id", verifyJWT, async (req:Request, res:Response) => {
   const user = (req as AuthedRequest).user;
   const id = req.params.id;
   if (!isValidId(id)) {
@@ -213,7 +218,7 @@ app.patch("/books/:id", verifyJWT, async (req, res) => {
 
 
 // 5) DELETE /books/:id — owner only
-app.delete("/books/:id", verifyJWT, async (req, res) => {
+app.delete("/books/:id", verifyJWT, async (req:Request, res:Response) => {
   const user = (req as AuthedRequest).user;
   const id = req.params.id;
   if (!isValidId(id)) {
@@ -238,7 +243,7 @@ app.delete("/books/:id", verifyJWT, async (req, res) => {
   res.json({ deletedCount: 1 });
 });
 // 6) POST /borrows
-app.post("/borrows", verifyJWT, async (req, res) => {
+app.post("/borrows", verifyJWT, async (req:Request, res:Response) => {
   const user = (req as AuthedRequest).user;
   const { bookId, returnDate } = (req.body ?? {}) as { bookId?: unknown; returnDate?: unknown };
   if (!isValidId(bookId)) {
@@ -298,7 +303,7 @@ app.post("/borrows", verifyJWT, async (req, res) => {
 });
 
 // 7) GET /borrows — only the logged-in user's borrows
-app.get("/borrows", verifyJWT, async (req, res) => {
+app.get("/borrows", verifyJWT, async (req:Request, res:Response) => {
   const user = (req as AuthedRequest).user;
   const db = await getDb();
   const list = await db.collection<Borrow>("borrows").find({ userEmail: user.email }).sort({ borrowDate: -1 }).toArray();
@@ -306,7 +311,7 @@ app.get("/borrows", verifyJWT, async (req, res) => {
 });
 
 // 8) DELETE /borrows/:id — return a book
-app.delete("/borrows/:id", async (req, res) => {
+app.delete("/borrows/:id", async (req:Request, res:Response) => {
   const user = (req as AuthedRequest).user;
   const id = req.params.id;
   if (!isValidId(id)) {
@@ -330,7 +335,7 @@ app.delete("/borrows/:id", async (req, res) => {
 });
 
 /* ---------- Errors ---------- */
-app.use((_req, res) => {
+app.use((_req:Request, res:Response) => {
   res.status(404).json({ message: "Route not found" });
 });
 

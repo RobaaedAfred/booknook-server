@@ -3,6 +3,8 @@ import "dotenv/config";
 import { MongoClient } from "mongodb";
 import type { Book, Category } from "./types.js";
 
+declare const process: { env: Record<string, string | undefined> };
+
 type Sample = [title: string, author: string, category: Category, description: string];
 
 const sample: Sample[] = [
