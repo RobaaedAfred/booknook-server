@@ -210,6 +210,33 @@ app.patch("/books/:id", verifyJWT, async (req, res) => {
   await books.updateOne({ _id }, { $set: { ...data, availableCopies, updatedAt: new Date() } });
   res.json(await books.findOne({ _id }));
 });
+
+
+// 5) DELETE /books/:id — owner only
+app.delete("/books/:id", verifyJWT, async (req, res) => {
+  const user = (req as AuthedRequest).user;
+  const id = req.params.id;
+  if (!isValidId(id)) {
+    res.status(400).json({ message: "Invalid book id" });
+    return;
+  }
+  const db = await getDb();
+  const books = db.collection<Book>("books");
+  const _id = new ObjectId(id);
+  const book = await books.findOne({ _id });
+  if (!book) {
+    res.status(404).json({ message: "Book not found" });
+    return;
+  }
+  if (book.addedBy?.email !== user.email) {
+    res.status(403).json({ message: "You can only delete your own books" });
+    return;
+  }
+
+  await books.deleteOne({ _id });
+  await db.collection<Borrow>("borrows").deleteMany({ bookId: id });
+  res.json({ deletedCount: 1 });
+});
 // 6) POST /borrows
 app.post("/borrows", verifyJWT, async (req, res) => {
   const user = (req as AuthedRequest).user;
@@ -233,6 +260,16 @@ app.post("/borrows", verifyJWT, async (req, res) => {
   if (!due || isNaN(due.getTime()) || due <= borrowDate) {
     due = new Date(borrowDate.getTime() + 14 * 24 * 60 * 60 * 1000);
   }
+
+  const borrow: Omit<Borrow, "_id"> = {
+    bookId,
+    bookTitle: book.title,
+    bookImage: book.image,
+    userName: user.name,
+    userEmail: user.email,
+    borrowDate,
+    returnDate: due,
+  };
 
   let borrowId: ObjectId;
   try {
@@ -259,7 +296,8 @@ app.post("/borrows", verifyJWT, async (req, res) => {
 
   res.status(201).json({ ...borrow, _id: borrowId });
 });
-/ 7) GET /borrows — only the logged-in user's borrows
+
+// 7) GET /borrows — only the logged-in user's borrows
 app.get("/borrows", verifyJWT, async (req, res) => {
   const user = (req as AuthedRequest).user;
   const db = await getDb();
