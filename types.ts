@@ -26,3 +26,13 @@ export interface Book extends BookInput {
   createdAt: Date;
   updatedAt?: Date;
 }
+export interface Borrow {
+  _id: ObjectId;
+  bookId: string;
+  bookTitle: string;
+  bookImage: string;
+  userName: string;
+  userEmail: string;
+  borrowDate: Date;
+  returnDate: Date;
+}

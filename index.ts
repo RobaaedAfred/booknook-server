@@ -84,7 +84,7 @@ async function verifyJWT(req: Request, res: Response, next: NextFunction): Promi
     res.status(401).json({ message: "Unauthorized: invalid or expired token" });
   }
 }
-
+//ok
 const isValidId = (id: unknown): id is string =>
   typeof id === "string" && ObjectId.isValid(id) && String(new ObjectId(id)) === id;
 
@@ -176,6 +176,19 @@ app.post("/books", async (req, res) => {
   res.status(201).json({ ...doc, _id: result.insertedId });
 });
 
+// 4) PATCH /books/:id — owner only
+app.patch("/books/:id", verifyJWT, async (req, res) => {
+  const user = (req as AuthedRequest).user;
+  const id = req.params.id;
+  if (!isValidId(id)) {
+    res.status(400).json({ message: "Invalid book id" });
+    return;
+  }
+  const { data, error } = cleanBookInput(req.body);
+  if (!data) {
+    res.status(400).json({ message: error });
+    return;
+  }
 
   const db = await getDb();
   const books = db.collection<Book>("books");
@@ -190,6 +203,13 @@ app.post("/books", async (req, res) => {
     return;
   }
 
+  // Keep availability consistent when the total changes.
+  const borrowed = Math.max(0, (book.totalCopies ?? 0) - (book.availableCopies ?? 0));
+  const availableCopies = Math.max(0, data.totalCopies - borrowed);
+
+  await books.updateOne({ _id }, { $set: { ...data, availableCopies, updatedAt: new Date() } });
+  res.json(await books.findOne({ _id }));
+});
 // 6) POST /borrows
 app.post("/borrows", verifyJWT, async (req, res) => {
   const user = (req as AuthedRequest).user;
