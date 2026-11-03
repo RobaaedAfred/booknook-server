@@ -146,7 +146,7 @@ app.get("/books", async (req:Request, res:Response) => {
 });
 
 // GET books/:id
-app.get("/books/:id",  async (req:Request, res:Response) => {
+app.get("/books/:id", verifyJWT, async (req:Request, res:Response) => {
   const id = req.params.id;
   if (!isValidId(id)) {
     res.status(400).json({ message: "Invalid book id" });
@@ -162,7 +162,7 @@ app.get("/books/:id",  async (req:Request, res:Response) => {
 });
 
 // POST /books
-app.post("/books", async (req:Request, res:Response) => {
+app.post("/books",verifyJWT, async (req:Request, res:Response) => {
   const user = (req as AuthedRequest).user;
   const { data, error } = cleanBookInput(req.body);
   if (!data) {
@@ -311,7 +311,7 @@ app.get("/borrows", verifyJWT, async (req:Request, res:Response) => {
 });
 
 // 8) DELETE /borrows/:id — return a book
-app.delete("/borrows/:id", async (req:Request, res:Response) => {
+app.delete("/borrows/:id", verifyJWT,async (req:Request, res:Response) => {
   const user = (req as AuthedRequest).user;
   const id = req.params.id;
   if (!isValidId(id)) {
